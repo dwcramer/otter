@@ -42,14 +42,14 @@ class UpdateSchedulerScalingPolicy(AutoscaleFixture):
             sp_cooldown=0,
             sp_change=change,
             schedule_cron='* * * * *')
-        sleep(self.scheduler_interval)
+        sleep(60 + self.scheduler_interval)
         self.verify_group_state(group.id, group.groupConfiguration.maxEntities)
         self.autoscale_behaviors.create_schedule_policy_given(
             group_id=group.id,
             sp_cooldown=0,
             sp_change=-change,
             schedule_cron='* * * * *')
-        sleep(self.scheduler_interval)
+        sleep(60 + self.scheduler_interval)
         self.verify_group_state(group.id, group.groupConfiguration.minEntities)
         self.empty_scaling_group(group)
 
@@ -67,30 +67,6 @@ class UpdateSchedulerScalingPolicy(AutoscaleFixture):
         self.verify_group_state(group.id, self.sp_change)
         sleep(60 - self.scheduler_interval)
         self.create_default_at_style_policy_wait_for_execution(group.id)
-        self.verify_group_state(group.id, self.sp_change * 2)
-        self.empty_scaling_group(group)
-
-    @unittest.skip('Cron not implemented yet')
-    def test_system_group_cooldown_cronstyle(self):
-        """
-        Create a scaling group with cooldown greater than a minute, create a scheduler
-        cron style policy to execute every minute. The scheduler running every scheduler
-        interval period does not cause the next cron policy to trigger. After the group
-        cooldown the cron style policy is triggered. (*test it)
-        """
-        group = self._create_group(cooldown=60)
-        self.autoscale_behaviors.create_schedule_policy_given(
-            group_id=group.id,
-            sp_cooldown=0,
-            sp_change=self.sp_change,
-            schedule_at='* * * * * *')
-        sleep(self.scheduler_interval)
-        self.verify_group_state(group.id, self.sp_change)
-        sleep(self.scheduler_interval)
-        self.verify_group_state(group.id, self.sp_change)
-        sleep(self.scheduler_interval)
-        self.verify_group_state(group.id, self.sp_change)
-        sleep(60 - (3 * self.scheduler_interval))
         self.verify_group_state(group.id, self.sp_change * 2)
         self.empty_scaling_group(group)
 
@@ -138,7 +114,7 @@ class UpdateSchedulerScalingPolicy(AutoscaleFixture):
             sp_cooldown=0,
             sp_change=self.sp_change,
             schedule_cron='* * * * *')
-        sleep(self.scheduler_interval)
+        sleep(60 + self.scheduler_interval)
         active_servers = self.sp_change + group.groupConfiguration.minEntities
         active_list_after_scale_up = self.autoscale_behaviors.wait_for_expected_number_of_active_servers(
             group_id=group.id,
@@ -150,7 +126,7 @@ class UpdateSchedulerScalingPolicy(AutoscaleFixture):
             sp_cooldown=0,
             sp_change=-self.sp_change,
             schedule_cron='* * * * *')
-        sleep(self.scheduler_interval)
+        sleep(60 + self.scheduler_interval)
         active_list_on_scale_down = self.autoscale_behaviors.wait_for_expected_number_of_active_servers(
             group_id=group.id,
             expected_servers=group.groupConfiguration.minEntities)

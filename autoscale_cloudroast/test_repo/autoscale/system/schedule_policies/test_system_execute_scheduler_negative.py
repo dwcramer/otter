@@ -29,7 +29,7 @@ class ExecuteNegativeSchedulerPolicy(AutoscaleFixture):
     @unittest.skip('Cron not implemented yet')
     def test_system_execute_cron_style_scale_up_when_min_maxentities_are_met(self):
         """
-        When min and max entities are already met on a scaling group, an cron style
+        When min and max entities are already met on a scaling group, a cron style
         scheduler policy to scale up or scale down will not be triggered.
         """
         group = self._create_group(
@@ -39,9 +39,46 @@ class ExecuteNegativeSchedulerPolicy(AutoscaleFixture):
             sp_cooldown=0,
             sp_change=self.sp_change,
             schedule_cron='* * * * *')
-        sleep(self.scheduler_interval)
+        sleep(60 + self.scheduler_interval)
         self.verify_group_state(group.id, self.gc_min_entities)
-        sleep(self.scheduler_interval)
+        self.autoscale_behaviors.create_schedule_policy_given(
+            group_id=group.id,
+            sp_cooldown=0,
+            sp_change=-self.sp_change,
+            schedule_cron='* * * * *')
+        sleep(60 + self.scheduler_interval)
+        self.verify_group_state(group.id, self.gc_min_entities)
+
+    @unittest.skip('Cron not implemented yet')
+    def test_system_cron_style_when_policy_cooldown_over_trigger_period(self):
+        """
+        When policy cooldown is set be greater than a minutes for a
+        cron style policy that is set to trigger every minute, that policy is
+        never executed.
+        """
+        group = self._create_group(cooldown=0)
+        self.autoscale_behaviors.create_schedule_policy_given(
+            group_id=group.id,
+            sp_cooldown=65,
+            sp_change=self.sp_change,
+            schedule_cron='* * * * *')
+        sleep(120 + self.scheduler_interval)
+        self.verify_group_state(group.id, self.gc_min_entities)
+
+    @unittest.skip('Cron not implemented yet')
+    def test_system_cron_style_when_group_cooldown_over_trigger_period(self):
+        """
+        When policy cooldown is set be greater than a minutes for a
+        cron style policy that is set to trigger every minute, that policy is
+        never executed.
+        """
+        group = self._create_group(cooldown=65)
+        self.autoscale_behaviors.create_schedule_policy_given(
+            group_id=group.id,
+            sp_cooldown=0,
+            sp_change=self.sp_change,
+            schedule_cron='* * * * *')
+        sleep(120 + self.scheduler_interval)
         self.verify_group_state(group.id, self.gc_min_entities)
 
     @unittest.skip('Cron not implemented yet')
@@ -65,7 +102,7 @@ class ExecuteNegativeSchedulerPolicy(AutoscaleFixture):
             group.id, at_style_policy['id'])
         self.autoscale_client.delete_scaling_policy(
             group.id, cron_style_policy['id'])
-        sleep(2 * self.scheduler_interval)
+        sleep(60 + self.scheduler_interval)
         self.verify_group_state(group.id, self.gc_min_entities)
 
     def test_system_scheduler_down(self):
@@ -93,7 +130,8 @@ class ExecuteNegativeSchedulerPolicy(AutoscaleFixture):
             lc_name='multi_scheduling', gc_cooldown=0,
             sp_list=at_style_list)
         sleep(self.scheduler_interval + self.scheduler_interval / 2)
-        self.verify_group_state(create_group_reponse.entity.id, self.scheduler_batch + 2)
+        self.verify_group_state(
+            create_group_reponse.entity.id, self.scheduler_batch + 2)
 
     @unittest.skip('AUTO-442')
     def test_create_multiple_scheduler_policies_to_execute_simaltaneously(self):
@@ -115,6 +153,36 @@ class ExecuteNegativeSchedulerPolicy(AutoscaleFixture):
         group = create_group_reponse.entity
         sleep(self.scheduler_interval)
         self.verify_group_state(group.id, 1 + 2 + 3)
+
+    @unittest.skip('AUTO-425')
+    def test_system_update_at_and_cron_style_scheduler_policy_to_webhook_type(self):
+        """
+        Policy updation fails when a cron style scheduler /at style scheduler is updated to
+        be of type webhook, with error 400
+        """
+        group = self._create_group()
+        at_style_policy = self.autoscale_behaviors.create_schedule_policy_given(
+            group_id=group.id,
+            sp_cooldown=0,
+            sp_change=self.sp_change,
+            schedule_at=self.autoscale_behaviors.get_time_in_utc(10))
+        cron_style_policy = self.autoscale_behaviors.create_schedule_policy_given(
+            group_id=group.id,
+            sp_cooldown=0,
+            sp_change=self.sp_change,
+            schedule_cron='* * * * *')
+        for each_policy in [at_style_policy['id'], cron_style_policy['id']]:
+            upd_policy_response = self.autoscale_client.update_policy(
+                group_id=group.id,
+                policy_id=each_policy,
+                name='upd_scheduler_to_webhook',
+                cooldown=self.sp_cooldown,
+                change=self.sp_change,
+                policy_type='webhook')
+            self.assertEquals(upd_policy_response.status_code, 403,
+                              msg='Update scheduler policy to webhook policy type'
+                              ' on the group {0} with response code {1}'.format(
+                              group.id, upd_policy_response.status_code))
 
     def _create_group(self, minentities=None, maxentities=None, cooldown=None):
         """
